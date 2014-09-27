@@ -9,8 +9,6 @@
 #import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 
-#define LX_FRAMES_PER_SECOND 60.0
-
 #ifndef CGGEOMETRY_LXSUPPORT_H_
 CG_INLINE CGPoint
 LXS_CGPointAdd(CGPoint point1, CGPoint point2) {
@@ -45,18 +43,22 @@ static NSString * const kLXCollectionViewKeyPath = @"collectionView";
 
 @interface UICollectionViewCell (LXReorderableCollectionViewFlowLayout)
 
-- (UIImage *)LX_rasterizedImage;
+- (UIView *)LX_snapshotView;
 
 @end
 
 @implementation UICollectionViewCell (LXReorderableCollectionViewFlowLayout)
 
-- (UIImage *)LX_rasterizedImage {
-    UIGraphicsBeginImageContextWithOptions(self.bounds.size, self.isOpaque, 0.0f);
-    [self.layer renderInContext:UIGraphicsGetCurrentContext()];
-    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
-    return image;
+- (UIView *)LX_snapshotView {
+    if ([self respondsToSelector:@selector(snapshotViewAfterScreenUpdates:)]) {
+        return [self snapshotViewAfterScreenUpdates:YES];
+    } else {
+        UIGraphicsBeginImageContextWithOptions(self.bounds.size, self.isOpaque, 0.0f);
+        [self.layer renderInContext:UIGraphicsGetCurrentContext()];
+        UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+        UIGraphicsEndImageContext();
+        return [[UIImageView alloc] initWithImage:image];
+    }
 }
 
 @end
@@ -216,7 +218,7 @@ static NSString * const kLXCollectionViewKeyPath = @"collectionView";
     UIEdgeInsets contentInset = self.collectionView.contentInset;
     // Important to have an integer `distance` as the `contentOffset` property automatically gets rounded
     // and it would diverge from the view's center resulting in a "cell is slipping away under finger"-bug.
-    CGFloat distance = rint(self.scrollingSpeed / LX_FRAMES_PER_SECOND);
+    CGFloat distance = rint(self.scrollingSpeed * displayLink.duration);
     CGPoint translation = CGPointZero;
     
     switch(direction) {
@@ -290,12 +292,12 @@ static NSString * const kLXCollectionViewKeyPath = @"collectionView";
             self.currentView = [[UIView alloc] initWithFrame:collectionViewCell.frame];
             
             collectionViewCell.highlighted = YES;
-            UIImageView *highlightedImageView = [[UIImageView alloc] initWithImage:[collectionViewCell LX_rasterizedImage]];
+            UIView *highlightedImageView = [collectionViewCell LX_snapshotView];
             highlightedImageView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
             highlightedImageView.alpha = 1.0f;
             
             collectionViewCell.highlighted = NO;
-            UIImageView *imageView = [[UIImageView alloc] initWithImage:[collectionViewCell LX_rasterizedImage]];
+            UIView *imageView = [collectionViewCell LX_snapshotView];
             imageView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
             imageView.alpha = 0.0f;
             
